@@ -1,11 +1,10 @@
 ######################################################
 #### Compile data from multple census files
-#### Remove single district states and any water regions
+#### Remove single district states 
 #### Calculate various explanatory factors
 ###################################################
 
 library(dplyr)
-library(sf)
 rm(list=ls())    #  remove all previous variables and value
 
 ### Get three decades data
@@ -13,91 +12,153 @@ Dpath <- "C:/Users/Owner/Compactness/Papercode/Process data"
 setwd(Dpath)
 
 print("Reading CD118")
-Shapes <- read_sf("CD118.shp")
-#Shapes <- st_transform( Shapes, crs ="EPSG:4326")      ### transform to WGS 84 coordiante system
-Shapes <- Shapes%>%filter(DISTRICT != "ZZ")
-nrow(Shapes)
-CDs <- Shapes
-
+CDx <- read.csv("CD118_shape_stats.csv")
 print("Reading CD113")
-Shapes <- read_sf("CD113.shp")
-#Shapes <- st_transform( Shapes, crs ="EPSG:4326")      ### transform to WGS 84 coordiante system 
-Shapes <- Shapes%>%filter(DISTRICT != "ZZ")
-nrow(Shapes)
-CDs <- rbind( CDs, Shapes)
-
+CD <- read.csv("CD113_shape_stats.csv")
+CDx <- rbind( CDx, CD)
 print("Reading CD108")
-Shapes <- read_sf("CD108.shp")
-#Shapes <- st_transform( Shapes, crs ="EPSG:4326")      ### transform to WGS 84 coordiante system 
-Shapes <- Shapes%>%filter(DISTRICT != "ZZ")
-nrow(Shapes)
-CDs <- rbind( CDs, Shapes)
-nrow(CDs)
+CD <- read.csv("CD108_shape_stats.csv")
+CDx <- rbind( CDx, CD)
+CDx <- CDx%>%filter( DISTRICT!='ZZ')
+colnames(CDx)[7]<-'Polsby'
 
 State <- read.csv( "Statenames.csv")                  ### Update state codes with real names
-State$STATEFP<- sprintf( "%02d", State$STATEFP)
-CDs<- left_join( CDs, State, by='STATEFP')
+#State$STATEFP<- sprintf( "%02d", State$STATEFP)
+CDx<- left_join( CDx, State, by='STATEFP')
 
-CDx <- st_drop_geometry(CDs)   ### Note runs much faster without geometry will add back later
+################  Add state populations
+Pfiles <- c( '2000','2010','2020')
+SESSNs <- c( 108, 113, 118)
+PopData <- data.frame(
+  STATE = character(0),
+  POP_REP = numeric(0),
+  SESSN = character(0),
+  stringsAsFactors = FALSE
+  )
 
-### Remove single dist states
-Ndists <- CDx%>%group_by( SESSN, ST) %>%summarise(Count=n())
-Onedist <- Ndists%>%filter( Count==1)
-nrow(Onedist)
-ST108 <- Onedist%>%filter( SESSN=="108")
-Indx1 <- which( CDx$SESSN=="108" & CDx$ST %in% ST108$ST)
-ST113 <- Onedist%>%filter( SESSN=="113")
-Indx2 <- which( CDx$SESSN=="113" & CDx$ST %in% ST113$ST)
-ST118 <- Onedist%>%filter( SESSN=="118")
-Indx3 <- which( CDx$SESSN=="118" & CDx$ST %in% ST118$ST)
-Indx <- c( Indx1,Indx2,Indx3)
-length(Indx)
-CDx <- CDx[-Indx,]
-Shape_Indx <- Indx
-nrow(CDx)
+for (i in 1:3) {
+  Fname <- paste0('Apportionment',Pfiles[i],'.csv')
+  Pdata <- read.csv( Fname)
+  Pdata['SESSN']<- SESSNs[i]
+  PopData <- rbind( PopData,Pdata)
+}
+CDx <- left_join( CDx, PopData, by=c( 'SESSN'='SESSN', 'STATE'='STATE'))
+CDx <- CDx%>%mutate( Pop_Den = 10e6*ST_POP/STarea)
 
-#### Get county data
+### Rename column and remove single dist states
+CDx <- CDx%>% mutate( Nd = REPs)
+CDx <- CDx%>%select( -REPs)
+CDx <- CDx %>% filter( Nd>1) 
+
+#### Get county data and summarize by state
 Cdata <- read.csv( "County2023.csv")
-nrow(Cdata)
-Cdata <- Cdata %>%filter( STATEFP!= 11)     ### remove DC as single county state
-nrow(Cdata)
-CSTdata <- Cdata%>%group_by(STATEFP)%>% summarise( CSTavg=mean(PolsbyW),CSTmed=median(PolsbyW), CSTmin=min(PolsbyW))
-Cdata <- left_join(Cdata, CSTdata)
-Cdata <- Cdata %>% mutate( Cdev = abs(PolsbyW-CSTmed))
-Cdevdata <- Cdata%>%group_by(STATEFP)%>%summarise( CSTmad=mean(Cdev), CSTsd=sd(PolsbyW) )
-CSTdata <- left_join(CSTdata, Cdevdata)
-CSTdata$STATEFP <- sprintf("%02d",CSTdata$STATEFP )
 
-###### Update ST data
-CDx <- CDx%>%mutate( STLarea = log( STarea), STLperim = log(STperim))
-STdata <- CDx%>%group_by(ST, SESSN)%>%summarise( Nd=n(), LNd= log( n()))
-CDx <- left_join( CDx, STdata)
-CDx <- CDx%>%mutate( STLAD = STLarea/Nd)
+Cdata <- Cdata%>%mutate(Log_Polsby = log(PolsbyW))  
+Cdata <- Cdata%>%mutate(Inv_Polsby = 1/PolsbyW)
+Cdata <- Cdata%>%mutate(Log_Reock = log(Reock))
+Cdata <- Cdata%>%mutate(Inv_Reock = 1/Reock)
+Cdata <- Cdata%>%mutate(Log_ReockX = log(ReockX))
+Cdata <- Cdata%>%mutate(Inv_ReockX = 1/ReockX)
+
+CSTdata <- Cdata%>%group_by(STATEFP)%>% summarise( Cnt_Pby_Avg=mean(PolsbyW),Cnt_Pby_Med=median(PolsbyW), Cnt_Pby_Gvg=mean(Log_Polsby),Cnt_Pby_Hvg=mean(Inv_Polsby), Cnt_Pby_Min=min(PolsbyW),Cnt_Pby_SD=sd(PolsbyW),
+                                                  Cnt_Rk_Avg=mean(Reock),Cnt_Rk_Med=median(Reock),Cnt_Rk_Gvg=mean(Log_Reock),Cnt_Rk_Hvg=mean(Inv_Reock), Cnt_Rk_Min=min(Reock), Cnt_Rk_SD=sd(Reock),
+                                                  Cnt_RkX_Avg=mean(ReockX),Cnt_RkX_Med=median(ReockX),Cnt_RkX_Gvg=mean(Log_ReockX),Cnt_RkX_Hvg=mean(Inv_ReockX), Cnt_RkX_Min=min(ReockX), Cnt_RkX_SD=sd(ReockX))
+
+CSTdata$Cnt_Pby_Gvg <- exp(CSTdata$Cnt_Pby_Gvg)  ## geometric avg
+CSTdata$Cnt_Rk_Gvg <- exp(CSTdata$Cnt_Rk_Gvg)
+CSTdata$Cnt_RkX_Gvg <- exp(CSTdata$Cnt_RkX_Gvg)
+CSTdata$Cnt_Pby_Hvg <- 1/CSTdata$Cnt_Pby_Hvg    ## harmonic avg
+CSTdata$Cnt_Rk_Hvg <- 1/CSTdata$Cnt_Rk_Hvg
+CSTdata$Cnt_RkX_Hvg <- 1/CSTdata$Cnt_RkX_Hvg
+
+CDx <- left_join( CDx, CSTdata, by=c('STATEFP'='STATEFP') )
+
+#### Calculate other parameters
+CDx <- CDx%>%mutate( LNd = log( Nd))
+CDx$STarea <- as.numeric(CDx$STarea)
+CDx <- CDx%>%mutate( STLarea= log(STarea))
+CDx <- CDx%>%mutate( STLarea_Nd = STLarea/Nd)
+CDx <- CDx%>%mutate( LPop_Den = log(Pop_Den))
 CDx <- CDx%>%mutate( S108 = ifelse( SESSN=="108", 1,0))
 CDx <- CDx%>%mutate( S113 = ifelse( SESSN=="113", 1,0))
 CDx <- CDx%>%mutate( S118 = ifelse( SESSN=="118", 1,0))
 CDx <- CDx%>%mutate( Decade = 0)
-CDx$Decade[ CDx$SESSN=="108"] <- -2
-CDx$Decade[ CDx$SESSN=="113"] <- -1
-CDx$DSTperim <- as.numeric( CDx$DSTperim)
-CDx <- CDx %>% mutate( RST = DSTperim/Dperimeter )
+CDx$Decade[ CDx$SESSN=="113"] <- 1
+CDx$Decade[ CDx$SESSN=="118"] <- 2
+CDx <- CDx %>% mutate( RSTPerim = DSTperim/Dperimeter )
+CDx$Coast_len <- as.numeric( CDx$Coast_len)
 CDx <- CDx %>% mutate( RSTPolsby = STpolsby*DSTperim/Dperimeter )
-CDx <- CDx %>% mutate( RCST = Coast_len/Dperimeter)
-CDx <- CDx %>% mutate( Coast = ifelse( RCST>0.1,1,0))
-CDx <- left_join( CDx, CSTdata)
+CDx <- CDx %>% mutate( RCoast = Coast_len/Dperimeter)
+CDx <- CDx %>% mutate( Coast = ifelse( RCoast>0.1,1,0))
+
 CDx <- CDx %>% mutate( STposlby2 = STpolsby^2)
-CDx <- CDx %>% mutate( CSTavg2 = CSTavg^2)
-CDx <- CDx %>% mutate( CSTsdI = 1/CSTsd)
-CDx <- CDx %>% mutate( CSTmadI = 1/CSTmad)
+CDx <- CDx %>% mutate( STreock2 = STreock^2)
+CDx <- CDx %>% mutate( Cnt_Pby_Avg2 = Cnt_Pby_Avg^2)
+CDx <- CDx %>% mutate( Cnt_Pby_Gvg2 = Cnt_Pby_Gvg^2)
+CDx <- CDx %>% mutate( Cnt_Pby_Hvg2 = Cnt_Pby_Hvg^2)
+CDx <- CDx %>% mutate( Cnt_Pby_Med2 = Cnt_Pby_Med^2)
+CDx <- CDx %>% mutate( Cnt_Rk_Avg2 = Cnt_Rk_Avg^2)
+CDx <- CDx %>% mutate( Cnt_Rk_Gvg2 = Cnt_Rk_Gvg^2)
+CDx <- CDx %>% mutate( Cnt_Rk_Hvg2 = Cnt_Rk_Hvg^2)
+CDx <- CDx %>% mutate( Cnt_Rk_Med2 = Cnt_Rk_Med^2)
+CDx <- CDx %>% mutate( Cnt_RkX_Avg2 = Cnt_RkX_Avg^2)
+CDx <- CDx %>% mutate( Cnt_RkX_Gvg2 = Cnt_RkX_Gvg^2)
+CDx <- CDx %>% mutate( Cnt_RkX_Hvg2 = Cnt_RkX_Hvg^2)
+CDx <- CDx %>% mutate( Cnt_RkX_Med2 = Cnt_RkX_Med^2)
 
-#### Create and output master data file with geometry
-CDshapes  <- CDs %>% select( "STATEFP","DISTRICT","SESSN","geometry")
-CD <- left_join(CDx, CDshapes)
+CDx <- CDx %>% mutate( Cnt_Pby_SDI = 1/Cnt_Pby_SD)
+CDx <- CDx %>% mutate( Cnt_Rk_SDI = 1/Cnt_Rk_SD)
+CDx <- CDx %>% mutate( Cnt_RkX_SDI = 1/Cnt_RkX_SD)
 
-CD$Dperimeter <- as.integer( CDx$Dperimeter)
-CD$STperim <- as.integer( CDx$STperim)
-CD$Darea <- CD$Darea/10e6              ### Note shapefile format can not accomodate very large numbers
-CD$STarea <- CD$STarea/10e6
+CDx$Darea <- CDx$Darea/10e6              
+CDx$STarea <- CDx$STarea/10e6
 
-st_write( CD,"District_master.shp", append=FALSE )
+#########################################
+### Compare districts in a state with compactness requirement to others
+#######################################
+ST_with_compactness_req <- c('AL','AZ','CA','CO','FL','HI','ID','IA',
+                             'KS','ME','MI','MN','MS','MO','MT','NE','NM','NY',
+                             'NC','OH','OK','PA','RI','SC','UT','VA','WA',
+                             'WV')
+
+
+CDx <- CDx %>%mutate( CReq=ifelse( ST %in% ST_with_compactness_req,1,0))
+
+write.csv( file='Compiled_data.csv', CDx, row.names=FALSE)
+print('Done')
+
+##################################################################
+### Multicolinjearity check
+##################################################################
+Reg_var <-c( "Polsby", "Reock", "STpolsby",  "STreock","STLarea" , "STLarea_Nd",     
+             "POP_REP", "LPop_Den","LNd",
+             "Cnt_Pby_Avg","Cnt_Pby_Min",
+             "Cnt_Rk_Avg", "Cnt_Rk_Min",
+             "S108", "S113", "S118", "Decade", "RSTPerim" ,   
+             "RSTPolsby", "RCoast" , "Coast",
+             "Cnt_Pby_SDI",  "Cnt_Rk_SDI" , 
+             "CReq"  )
+
+RegData <- select( CDx, all_of(Reg_var))
+
+CorrData <- data.frame(
+  Var1 = character(0),
+  Var2 = character(0),
+  Corr = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+Nvs <- length(Reg_var)
+for (i in 1:(Nvs-1)) {
+  for (j in (i+1):Nvs){
+    if (i==j) next
+    Corr <- list( Var1=Reg_var[i], Var2=Reg_var[j], Corr=cor( RegData[,i], RegData[,j]))
+  CorrData <- rbind( CorrData, Corr)
+    }}  
+ 
+ write.csv( file="Correlations.csv", CorrData, row.names = FALSE) 
+
+High_corrs <- CorrData%>%filter( abs(Corr)>0.7)  
+
+High_corrs
 
