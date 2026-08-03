@@ -314,7 +314,7 @@ Wilcoxtest
 MedResid <- RegData %>% group_by(SESSN,ST)%>%summarise( Res_med= median( Resid))
 MedResid <- as.data.frame( MedResid)
 
-Test <- kruskal.test( Res_med ~ SESSN, data = )  #### NULL is no difference in medians
+Test <- kruskal.test( Res_med ~ SESSN, data = MedResid )  #### NULL is no difference in medians
 Test  ###Result  Not diff
 
 Mtest <- Median.test(  MedResid$Res_med, MedResid$SESSN, simulate.p.value= TRUE)

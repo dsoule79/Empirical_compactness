@@ -112,7 +112,7 @@ for( i in 1:Nts){
   Nflagged <- length( which( Gdat$Metric<T))
   Nflagged.accurate <- length( which( Gdat$Metric<T & Gdat$GD==1))
   Nflagged.wrong <- length( which( Gdat$Metric<T & Gdat$GD==0))
-  Npassed.accurate <- length( which( Gdat$Metricl>T & Gdat$GD==0))
+  Npassed.accurate <- length( which( Gdat$Metric>T & Gdat$GD==0))
   ROC[i,1] <- Accuracy <- ( Nflagged.accurate + Npassed.accurate) / N
   ROC[i,2] <- Precision <- Nflagged.accurate/Nflagged
   if ( is.na(Precision)) { ROC[i,2] <- Precision <- 0}
