@@ -32,10 +32,10 @@ __MACOSX/
 Process data/MO-Middecade data.csv
 Process data/MO118 data.csv
 
-# --- Model parameters: track only the 4 canonical specs; ignore all other ---
+# --- Model parameters: track only the 3 canonical specs; ignore all other ---
 # --- alternative/sensitivity fits (kept on disk locally, not committed). ---
+# --- (Reock has no distinct "Best": its best model is the intercept-only Null.) ---
 Process data/ModelParams_*.csv
 !Process data/ModelParams_Pby_Crq_Null.csv
 !Process data/ModelParams_Pby_Crq_Best.csv
 !Process data/ModelParams_Reock_Crq_Null.csv
-!Process data/ModelParams_Reock_Crq_Best.csv

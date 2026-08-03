@@ -97,8 +97,10 @@ IDwrong <- function(T){
 Gdat<- Gerry.dat
 Gdat <- Gdat%>%select( c( SESSN, ST, Pstate, MinDisPval, Gerryd, Splitd))
 Gdat <- filter( Gdat, SESSN!=108)
-Gdat$Metric <- Gdat$MinDisPval   ### Test metric for ROC analysis
-#Gdat$Metric <- Gdat$Pstate
+### One run writes BOTH ROC curves. STpval first, MinDis last, so the downstream
+### AUC/plots below use the MinDis curve as before. No manual line-swap needed.
+for( Metric_type in c("STpval","MinDis") ){
+Gdat$Metric <- if( Metric_type=="MinDis" ) Gdat$MinDisPval else Gdat$Pstate   ### Test metric for ROC analysis
 Gdat$GD <- Gdat$Gerryd
 
 Thresholds <- seq( 0,1,0.001)
@@ -133,9 +135,9 @@ for( i in 1:Nts){
 ROC <- as.data.frame( ROC)
 States <- as.data.frame( States)
 Rocdata <- cbind( ROC, States) 
-F1name <- paste0("ROCdata-MinDis-",Fname)
-F1name <- paste0("ROCdata-STpval-",Fname)
+F1name <- paste0("ROCdata-", Metric_type, "-", Fname)
 write.csv( file=F1name, Rocdata)
+}   ### end Metric_type loop
 
 ggplot( data=ROC, aes( x=FPR, y=TPR)) +
       geom_line() +

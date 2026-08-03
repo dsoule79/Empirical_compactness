@@ -101,7 +101,7 @@ AIC( Beta_NOvars)
 BIC( Beta_NOvars)
 
 Summary <- Format_summary( Beta_NOvars)
-write.csv( file="ModelParams_Pby_Cqr_Null.csv", Summary)
+write.csv( file="ModelParams_Pby_Crq_Null.csv", Summary)
 
 ################################################################################
 ### Beta regression versus states 
