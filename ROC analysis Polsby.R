@@ -69,8 +69,8 @@ ST_SESSN.dat[ST_SESSN.dat$Pstate<0.01,]
 Gerrys <- read.csv( file="Interval_Gerrymanders_plus.csv")
 Gerry.dat <- left_join( ST_SESSN.dat, Gerrys)
 
-I <- which( Gerry.dat$SESSN==113 & Gerry.dat$ST=="IL")
-Gerry.dat$Gerryd[I]<- 1
+### 113IL is NOT overridden as a known gerrymander: use the reference-file value
+### (Gerryd=0), consistent with Interval_Gerrymanders_plus.csv and the Reock analysis.
 
 ###############################
 ### ROC analysis
