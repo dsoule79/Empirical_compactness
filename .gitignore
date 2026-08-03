@@ -27,3 +27,7 @@ __pycache__/
 .DS_Store
 __MACOSX/
 ._*
+
+# --- Local-only Missouri scratch/intermediate files (kept on disk, not tracked) ---
+Process data/MO-Middecade data.csv
+Process data/MO118 data.csv
