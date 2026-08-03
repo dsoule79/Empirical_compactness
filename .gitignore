@@ -31,3 +31,11 @@ __MACOSX/
 # --- Local-only Missouri scratch/intermediate files (kept on disk, not tracked) ---
 Process data/MO-Middecade data.csv
 Process data/MO118 data.csv
+
+# --- Model parameters: track only the 4 canonical specs; ignore all other ---
+# --- alternative/sensitivity fits (kept on disk locally, not committed). ---
+Process data/ModelParams_*.csv
+!Process data/ModelParams_Pby_Crq_Null.csv
+!Process data/ModelParams_Pby_Crq_Best.csv
+!Process data/ModelParams_Reock_Crq_Null.csv
+!Process data/ModelParams_Reock_Crq_Best.csv
